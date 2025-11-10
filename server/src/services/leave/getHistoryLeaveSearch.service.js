@@ -12,12 +12,10 @@ export const getHistoryLeaveSearch = async ({ value, type, status, page = 1, lim
             ...(status && { status: status }),
             NOT: { status: 'pending' },
             ...(value && {
-                tb_users: {
                     fullname: {
                         contains: value,
                         mode: 'insensitive'
                     }
-                }
             })
         };
 
@@ -30,26 +28,18 @@ export const getHistoryLeaveSearch = async ({ value, type, status, page = 1, lim
             skip: offset,
             take: limit,
             include: {
-                tb_users: {
-                    select: {
-                        fullname: true
-                    }
-                },
                 tb_leave_log: {
                     orderBy: { changed_at: 'desc' },
                     take: 1,
                     select: {
                         reason: true,
                         balances_used: true,
-                        tb_users: {
-                            select: {
-                                fullname: true
-                            }
-                        }
+                        actor_fullname: true
                     }
                 }
             }
         });
+
 
         const formattedLeaves = leaves.map(leave => {
             const latestLog = leave.tb_leave_log[0] || null;
@@ -67,14 +57,14 @@ export const getHistoryLeaveSearch = async ({ value, type, status, page = 1, lim
                 status: leave.status,
                 created_at: leave.created_at,
                 NIK: leave.NIK,
-                fullname: leave.tb_users?.fullname || "Unknown",
+                fullname: leave.fullname,
                 id_special: leave.id_special,
                 id_mandatory: leave.id_mandatory,
                 leave_log: latestLog
                     ? {
                         reason: latestLog.reason,
                         balances_used: latestLog.balances_used,
-                        actor_fullname: latestLog.tb_users?.fullname
+                        actor_fullname: latestLog.actor_fullname
                     }
                     : {
                         reason: "-",

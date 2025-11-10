@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+// schema untuk validasi form
 const leaveRequestSchema = z.object({
     title: z.string().min(3, 'Title must be at least 3 characters').optional(),
     leave_type: z.enum(['personal_leave', 'special_leave', 'mandatory_leave']),

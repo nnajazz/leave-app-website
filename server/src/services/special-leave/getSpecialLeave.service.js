@@ -11,6 +11,9 @@ export const getSpecialLeaveService = async (gender, page = 1, limit = 10) => {
             where: {
                 applicable_gender: {
                     in: [gender, 'mf']
+                },
+                NOT: {
+                    is_active: false
                 }
             }
         }),
@@ -18,6 +21,9 @@ export const getSpecialLeaveService = async (gender, page = 1, limit = 10) => {
             where: {
                 applicable_gender: {
                     in: [gender, 'mf']
+                },
+                NOT: {
+                    is_active: false
                 }
             }
         }),

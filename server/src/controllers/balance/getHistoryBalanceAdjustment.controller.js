@@ -2,6 +2,7 @@ import { getAllBalanceAdjustment } from "../../services/balance/getAllBalanceAdj
 import { createDateFromString } from "../../utils/leaves.utils.js"
 import { responsePagination } from "../../utils/responsePagination.utils.js"
 
+// controller untuk mengambil seluruh data modifikasi balance karyawan 
 export const getHistoryBalanceAdjustment = async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1
@@ -13,8 +14,10 @@ export const getHistoryBalanceAdjustment = async (req, res, next) => {
 
         endDate?.setUTCHours(23, 59, 59);
 
+        // proses mengambil data dari database
         const logs = await getAllBalanceAdjustment(page, limit, startDate, endDate, balanceYear, searchValue)
 
+        // format standar pagination
         const result = responsePagination("Balance Adjustment logs retrieved successfully", logs)
 
         res.status(200).json(result)

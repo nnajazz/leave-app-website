@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  wgs-cuti-be:
+    image: _IMAGE:VERSION_
+    restart: always
+    ports:
+        - "3052:3000"

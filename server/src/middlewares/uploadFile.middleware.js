@@ -1,8 +1,8 @@
 import multer from 'multer'
 import path from 'path'
-import { fileURLToPath } from 'url';
 import fs from 'fs'
 
+// filepath configuration
 const uploadDir = path.join(process.cwd(), 'src', 'temp')
 console.log(uploadDir);
 
@@ -34,6 +34,12 @@ const upload = multer({
 
 const uploadSingle = upload.single('file')
 
+/**
+ * middleware yang digunakan untuk mengupload single file csv ke directory tujuan (./src/temp)
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const uploadFile = async (req, res, next) => {
     try {
 

@@ -1,8 +1,9 @@
 import { z } from 'zod/v4';
 
+// validasi request body yang pada route login
 const loginFormRequest = z.object({
-    email: z.email(),
-    password: z.string().min(8).max(16)
+    email: z.string(),
+    password: z.string().max(50)
 });
 
 export default loginFormRequest;

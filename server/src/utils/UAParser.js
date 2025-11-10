@@ -1,5 +1,6 @@
 import { UAParser } from 'ua-parser-js'
 
+// fungsi ini digunakan untuk memformat data user-agent saat user login ke dalam aplikasi
 export const getDeviceInfo = async (userAgentString) => {
     const parser = new UAParser();
     const result = parser.setUA(userAgentString).getResult();

@@ -1,3 +1,5 @@
+
+
 export const formatSettingResponse = (settings) => {
     return {
         id: settings.id,

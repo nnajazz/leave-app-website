@@ -7,11 +7,22 @@
   "type": "module",
   "main": "./src/index.js",
   "scripts": {
-    "dev": "nodemon ./src/index.js"
+    "dev":             "dotenv -e .env nodemon ./src/index.js",
+    "prod":            "dotenv -e .env.production nodemon ./src/index.js",
+    "migrate:dev":     "dotenv -e .env -- npx prisma migrate reset",
+    "generate:dev":    "dotenv -e .env -- npx prisma generate",
+    "push:dev":        "dotenv -e .env -- npx prisma db push",
+    "push-force:dev":  "dotenv -e .env -- npx prisma db push --force-reset",
+    "seed:dev":        "dotenv -e .env -- npx prisma db seed",
+    "migrate:prod":    "dotenv -e .env.production -- npx prisma migrate reset",
+    "generate:prod":   "dotenv -e .env.production -- npx prisma generate",
+    "push:prod":       "dotenv -e .env.production -- npx prisma db push",
+    "push-force:prod": "dotenv -e .env.production -- npx prisma db push --force-reset",
+    "seed:prod":       "dotenv -e .env.production -- npx prisma db seed"
   },
   "prisma": {
     "schema": "./src/models/schema.prisma",
-    "seed": "node ./src/seed/seed.js"
+    "seed": "dotenv -e .env.development node ./src/seed/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
@@ -21,7 +32,9 @@
     "connect-timeout": "^1.9.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "cross-env": "^10.0.0",
     "dotenv": "^17.0.1",
+    "dotenv-cli": "^10.0.0",
     "express": "^5.1.0",
     "fast-csv": "^5.0.5",
     "jsonwebtoken": "^9.0.2",
@@ -35,6 +48,7 @@
     "zod": "^3.25.74"
   },
   "devDependencies": {
+    "cross-env": "10.0.0",
     "prisma": "^6.11.1"
   }
 }

@@ -14,7 +14,7 @@ const run = async () => {
       include: {
         tb_roles: true,
         tb_statuses: true
-      }
+      } 
     });
     console.log(`👤 Total user: ${allUsers.length}`);
     for (const user of allUsers) {

@@ -21,10 +21,32 @@ export const logout = async (req, res, next) => {
         path: "/",
       });
 
+<<<<<<< HEAD
       return res.status(200).json({
         success: true,
         message: "Logged out (no token found).",
       });
+=======
+        // check if token are exist in database.
+        await deleteToken(decode.nik, deviceId);
+
+
+        const authCookieOptions = {
+            httpOnly: true,
+            secure: true,
+            path: "/"
+        };
+
+
+        res.clearCookie("Authorization", authCookieOptions);
+        res.clearCookie("device-id", authCookieOptions);
+
+        res.status(200).json({
+            success: true,
+            message: "You have been successfully logged out.",
+        });
+    } catch (error) {
+        next(error);
     }
 
     // Coba decode token dengan aman

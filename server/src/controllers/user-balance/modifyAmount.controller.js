@@ -1,61 +1,69 @@
 import { adjustModifyAmount } from "../../services/user-balance/adjustModifyAmount.service.js";
-import prisma from '../../utils/client.js'
+import prisma from "../../utils/client.js";
 import { decodeToken } from "../../utils/jwt.js";
+import { getApiEmployee } from "../../utils/getApiEmployee.utils.js";
 
 export const modifyAmount = async (req, res, next) => {
-    try {
-        const { nik } = req.params;
-        const { adjustment_value, notes, leave_type, operation } = req.body;
-        const token = req.cookies["Authorization"];
+  try {
+    const { nik } = req.params;
+    const { adjustment_value, notes, leave_type, operation } = req.body;
+    const token = req.cookies["Authorization"];
 
-        const decodedToken = await decodeToken(token);
-        const actor = {
-            nik: decodedToken.NIK,
-            role: decodedToken.tb_roles.name,
-            name: decodedToken.fullname
-        };
+    const decodedToken = await decodeToken(token);
+    //console.log("Decoded token:", decodedToken);
+    const actor = {
+      nik: decodedToken.NIK,
+      role: decodedToken.tb_roles.name,
+      name: decodedToken.fullname,
+    };
 
-        console.log(actor);
+    console.log(actor);
 
-        if (!actor.nik || !actor.role) {
-            const error = new Error("Unauthorized: incomplete token data");
-            error.statusCode = 401;
-            throw error;
-        }
-
-        if (actor.nik === nik) {
-            const error = new Error("You are not allowed to add your own leave balance");
-            error.statusCode = 403;
-            throw error;
-        }
-
-        const targetUser = await prisma.tb_users.findFirst({
-            where: { NIK: nik,
-                isActive: true
-             },
-            select: { tb_roles: { select: { name: true } } }
-        });
-
-        if (!targetUser) {
-            const error = new Error("Target user not found");
-            error.statusCode = 404;
-            throw error;
-        }
-
-        const targetRole = targetUser.tb_roles.name;
-
-        const result = await adjustModifyAmount(
-            nik,
-            adjustment_value,
-            notes,
-            actor,
-            targetRole,
-            leave_type,
-            operation
-        );
-
-        res.status(200).json({ message: 'Balance adjusted successfully', data: result });
-    } catch (error) {
-        next(error);
+    if (!actor.nik || !actor.role) {
+      const error = new Error("Unauthorized: incomplete token data");
+      error.statusCode = 401;
+      throw error;
     }
+
+    if (actor.nik === nik) {
+      const error = new Error(
+        "You are not allowed to add your own leave balance"
+      );
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const targetUser = await prisma.tb_users.findFirst({
+      where: { NIK: nik, isActive: true },
+      select: { tb_roles: { select: { name: true } } },
+    });
+
+    if (!targetUser) {
+      const error = new Error("Target user not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (toLowerCase(targetUser.tb_statuses.name) === "magang") {
+      const error = new Error(`Cannot adjust leave balance for intern.`);
+      error.statusCode = 403;
+      throw error;
+    }
+
+
+    const result = await adjustModifyAmount(
+      nik,
+      adjustment_value,
+      notes,
+      actor,
+      leave_type,
+      operation
+    );
+
+    res
+      .status(200)
+      .json({ message: "Balance adjusted successfully", data: result });
+  } catch (error) {
+    next(error);
+  }
 };

@@ -14,7 +14,8 @@ export const leaveSchema = z.object({
     reason: z.string("reason must be string"),
     status: z.enum(status),
     created_at: z.date().min(new Date("1900-01-01"), { error: "start_date is too far behind" }),
-    NIK: z.string("NIK must be string")
+    NIK: z.string("NIK must be string"),
+    fullname: z.string()
 })
 
 export const userSchema = z.object({
@@ -41,6 +42,7 @@ export const leaveLogSchema = z.object({
     new_status: z.enum(status),
     reason: z.string('reason must be string'),
     changed_by_nik: z.string(),
+    actor_fullname: z.string(),
     changed_at: z.date().min(new Date("1900-01-01"), { error: "start_date is too far behind" }),
     balances_used: z.array(),
 })
@@ -51,16 +53,23 @@ export const balanceAdjustmentSchema = z.object({
     notes: z.string("notes must be string"),
     actor: z.string("actor must be string"),
     NIK: z.string("NIK must be string"),
+    fullname: z.string(),
     balance_year: z.number("balance_year must be number")
 })
 
 export const importBalanceAdjustmentSchema = z.object({
     NIK: z.string("NIK must be string"),
+    fullname: z.string("fullname must be string"),
     amount: z.number("amount must be number"),
     notes: z.string("notes must be string"),
-        leave_balances: z.enum(leave_balances, "Invalid input in the leave_balances column; available options are: current, last_year, last_two_year.")
+    leave_balances: z.enum(leave_balances, "Invalid input in the leave_balances column; available options are: current, last_year, last_two_year.")
 })
 
+/**
+ * fungsi ini digunakan untuk memvalidasi tipe data dari parameter data sesuai dengan parameter schema
+ * @param {*} schema 
+ * @param {*} data 
+ */
 export const validateInjectDataType = (schema, data) => {
     try {
         const result = schema.safeParse(data)
