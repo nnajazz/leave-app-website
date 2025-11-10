@@ -15,7 +15,6 @@ import { validate } from "../middlewares/validate.js";
 import leaveRequestSchema from "../validators/leave.validator.js";
 import { isAuthenticated } from "../middlewares/isAuthenticated.middleware.js";
 import { validateRole } from "../middlewares/validateRole.middleware.js";
-
 import { validateLeaveBalance } from "../middlewares/validateLeaveBalance.middleware.js";
 import { validateSpecialLeaveNotWeekend } from "../middlewares/validateSpecialLeaveNotWeekend.js";
 import { checkDuplicateLeave } from "../middlewares/checkDuplicateLeave .middleware.js";

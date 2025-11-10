@@ -19,7 +19,7 @@ export const generateToken = async (payload, deviceData, expiresIn = '24h') => {
             console.log(oldToken);
             if (!oldToken) {
                 const overToken = await addToken(token, payload.NIK, deviceData.deviceInfo, deviceData.deviceId);
-                return;
+                return token;
             }
 
             if (!await verifyToken(oldToken.access_token, oldToken.device_id)) {

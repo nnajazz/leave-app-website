@@ -47,6 +47,7 @@ export const login = async (req, res, next) => {
 
 
         const newToken = await generateToken(userData, deviceData);
+        console.log("Generated Token:", newToken);
 
         res.cookie('Authorization', newToken, {
             httpOnly: true,
