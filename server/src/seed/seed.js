@@ -2,72 +2,56 @@ import prisma from "../utils/client.js";
 import bcrypt from "bcrypt";
 import { v4 as uuid } from "uuid";
 import { createDateFromString } from "../utils/leaves.utils.js";
+import { getApiEmployee } from "../utils/getApiEmployee.utils.js";
 
 async function manualSeed() {
-  await prisma.$transaction(async (tx) => {
-    await tx.tb_leave_log.deleteMany();
-    await tx.tb_leave.deleteMany();
-    await tx.tb_balance_adjustment.deleteMany();
-    await tx.tb_balance.deleteMany();
-    await tx.tb_jwt_token.deleteMany();
-    await tx.tb_users.deleteMany();
-    await tx.tb_special_leave.deleteMany();
-    await tx.tb_mandatory_leave.deleteMany();
-    await tx.tb_settings.deleteMany();
+  await prisma.$transaction(
+    async (tx) => {
+      // ===========================
+      // 1. Clear old data
+      // ===========================
+      await tx.tb_leave_log.deleteMany();
+      await tx.tb_leave.deleteMany();
+      await tx.tb_balance_adjustment.deleteMany();
+      await tx.tb_balance.deleteMany();
+      await tx.tb_jwt_token.deleteMany();
+      await tx.tb_users.deleteMany();
+      await tx.tb_special_leave.deleteMany();
+      await tx.tb_mandatory_leave.deleteMany();
+      await tx.tb_settings.deleteMany();
+      await tx.tb_roles.deleteMany();
+      await tx.tb_statuses.deleteMany();
+      await tx.tb_settings.deleteMany();
 
-    await tx.tb_settings.create({
-      data: {
-        light_image: `http://localhost:3001/uploads/dark.svg`,
-        light_background: "#FFFFFF",
-        light_foreground: "#191B21",
-        light_card: "#dbeafe",
-        light_cardForeground: "#193cb8",
-        light_primary: "#dbeafe",
-        light_primaryForeground: "#191B21",
-        light_secondary: "#155dfc",
-        light_secondaryForeground: "#FFFFFF",
-        dark_image: `http://localhost:3001/uploads/light.svg`,
-        dark_background: "#191B21",
-        dark_foreground: "#FFFFFF",
-        dark_card: "#212838",
-        dark_cardForeground: "#FFFFFF",
-        dark_primary: "#212838",
-        dark_primaryForeground: "#dbeafe",
-        dark_secondary: "#155dfc",
-        dark_secondaryForeground: "#191B21",
-      },
-    });
+      // ===========================
+      // 2. Seed Settings
+      // ===========================
+      await tx.tb_settings.create({
+        data: {
+          light_image: `http://${process.env.HOSTNAME}:${process.env.PORT}/uploads/dark.svg`,
+          light_background: "#FFFFFF",
+          light_foreground: "#191B21",
+          light_card: "#dbeafe",
+          light_cardForeground: "#193cb8",
+          light_primary: "#dbeafe",
+          light_primaryForeground: "#191B21",
+          light_secondary: "#155dfc",
+          light_secondaryForeground: "#FFFFFF",
+          dark_image: `http://${process.env.HOSTNAME}:${process.env.PORT}/uploads/light.svg`,
+          dark_background: "#191B21",
+          dark_foreground: "#FFFFFF",
+          dark_card: "#212838",
+          dark_cardForeground: "#FFFFFF",
+          dark_primary: "#212838",
+          dark_primaryForeground: "#dbeafe",
+          dark_secondary: "#155dfc",
+          dark_secondaryForeground: "#191B21",
+        },
+      });
 
-    // Delete existing roles and statuses to prevent conflicts on re-seed
-    await tx.tb_roles.deleteMany();
-    await tx.tb_statuses.deleteMany();
-    await tx.tb_settings.deleteMany(); // Add this line to clear settings
-
-    // Seed Settings
-    await tx.tb_settings.create({
-      data: {
-        light_image: `http://${process.env.HOSTNAME}:${process.env.PORT}/uploads/dark.svg`,
-        light_background: "#FFFFFF",
-        light_foreground: "#191B21",
-        light_card: "#dbeafe",
-        light_cardForeground: "#193cb8",
-        light_primary: "#dbeafe",
-        light_primaryForeground: "#191B21",
-        light_secondary: "#155dfc",
-        light_secondaryForeground: "#FFFFFF",
-        dark_image: `http://${process.env.HOSTNAME}:${process.env.PORT}/uploads/light.svg`,
-        dark_background: "#191B21",
-        dark_foreground: "#FFFFFF",
-        dark_card: "#212838",
-        dark_cardForeground: "#FFFFFF",
-        dark_primary: "#212838",
-        dark_primaryForeground: "#dbeafe",
-        dark_secondary: "#155dfc",
-        dark_secondaryForeground: "#191B21",
-      },
-    });
-
-    // Seed Roles
+      // ===========================
+      // 3. Seed Roles
+      // ===========================
     const rolesData = [
       {
         name: "Super Admin",
@@ -88,7 +72,10 @@ async function manualSeed() {
       createdRoles[role.slug] = newRole.id;
     }
 
-    // Seed Statuses
+
+      // ===========================
+      // 4. Seed Statuses
+      // ===========================
     const statusesData = [
       { name: "Magang" },
       { name: "Kontrak" },
@@ -101,6 +88,9 @@ async function manualSeed() {
       createdStatuses[status.name] = newStatus.id;
     }
 
+      // ===========================
+      // 5. Seed Users
+      // ===========================
     const users = [
       {
         NIK: "100001",
@@ -214,266 +204,258 @@ async function manualSeed() {
       },
     ];
 
-    for (const user of users) {
-      await tx.tb_users.create({
-        data: {
-          NIK: user.NIK,
-          fullname: user.fullname,
-          email: user.email,
-          password: user.password,
-          isMale: user.isMale,
-          role_id: createdRoles[user.roleSlug],
-          status_id: createdStatuses[user.statusName],
-          join_date: user.join_date,
-          isActive: user.isActive,
+      for (const user of users) {
+        await tx.tb_users.create({
+          data: {
+            NIK: user.NIK,
+            fullname: user.fullname,
+            email: user.email,
+            password: user.password,
+            isMale: user.isMale,
+            role_id: createdRoles[user.roleSlug],
+            status_id: createdStatuses[user.statusName],
+            join_date: user.join_date,
+            isActive: user.isActive,
+          },
+        });
+
+        // ===========================
+        // 6. Automated balance & adjustment
+        // ===========================
+        if (user.isActive && user.statusName !== "Magang") {
+          const startBalanceDate = new Date(
+            user.join_date.getFullYear(),
+            user.join_date.getMonth() + 4,
+            user.join_date.getDate()
+          );
+          const yearsToGenerate =
+            new Date().getFullYear() - startBalanceDate.getFullYear() + 1;
+
+          for (let i = 0; i < yearsToGenerate; i++) {
+            const receiveYear = startBalanceDate.getFullYear() + i;
+            const receiveMonth = i === 0 ? startBalanceDate.getMonth() : 0;
+            const receiveDay = i === 0 ? startBalanceDate.getDate() : 1;
+
+            const balance = await tx.tb_balance.create({
+              data: {
+                amount: 12,
+                receive_date: createDateFromString(
+                  new Date(receiveYear, receiveMonth, receiveDay)
+                ),
+                expired_date: createDateFromString(
+                  new Date(receiveYear + 2, 3, 1)
+                ),
+                NIK: user.NIK,
+              },
+            });
+
+            await tx.tb_balance_adjustment.create({
+              data: {
+                actor: "system",
+                balance_year: balance.receive_date.getFullYear(),
+                NIK: balance.NIK,
+                notes: "Created balance",
+                id_balance: balance.id_balance,
+                adjustment_value: balance.amount,
+              },
+            });
+          }
+        }
+      }
+
+      // ===========================
+      // 7. Seed Special Leave
+      // ===========================
+      const specialLeaves = [
+        {
+          title: "Cuti Melahirkan",
+          applicable_gender: "f",
+          duration: 3,
+          type: "month",
+          is_active: true,
+          description: "Cuti melahirkan untuk karyawan perempuan",
         },
-      });
+        {
+          title: "Cuti Haid",
+          applicable_gender: "f",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description: "Cuti haid untuk karyawan perempuan",
+        },
+        {
+          title: "Cuti Menikah",
+          applicable_gender: "mf",
+          duration: 3,
+          type: "day",
+          is_active: true,
+          description: "Cuti menikah untuk karyawan",
+        },
+        {
+          title: "Cuti Menikahkan Anak",
+          applicable_gender: "mf",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description: "Cuti menikahkan anak untuk karyawan",
+        },
+        {
+          title: "Cuti Mengkhitankan Anak",
+          applicable_gender: "mf",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description: "Cuti mengkhitankan anak untuk karyawan",
+        },
+        {
+          title: "Cuti Membaptis Anak",
+          applicable_gender: "mf",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description: "Cuti membaptis anak untuk karyawan",
+        },
+        {
+          title: "Cuti Istri Melahirkan/Keguguran",
+          applicable_gender: "m",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description: "Cuti karena istri melahirkan atau keguguran",
+        },
+        {
+          title: "Cuti Keluarga Inti Meninggal",
+          applicable_gender: "mf",
+          duration: 2,
+          type: "day",
+          is_active: true,
+          description:
+            "Cuti karena meninggal suami/istri/orang tua/mertua/anak/menantu",
+        },
+        {
+          title: "Cuti Anggota Serumah Meninggalll",
+          applicable_gender: "mf",
+          duration: 1,
+          type: "day",
+          is_active: true,
+          description: "Cuti karena meninggal anggota keluarga serumah",
+        },
+      ];
 
-      if (user.isActive && user.statusName !== "Magang") {
-         const balanceLastTwoYear = await tx.tb_balance.create({
-          data: {
-            amount: 12,
-            receive_date: new Date("2023-01-01"),
-            expired_date: createDateFromString(new Date(2025, 3, 1)),
-            NIK: user.NIK,
-          },
-        });
-
-        await tx.tb_balance_adjustment.create({
-          data: {
-            actor: "system",
-            balance_year: balanceLastTwoYear.receive_date.getFullYear(),
-            NIK: balanceLastTwoYear.NIK,
-            notes: "Created balance",
-            id_balance: balanceLastTwoYear.id_balance,
-            adjustment_value: balanceLastTwoYear.amount,
-          },
-        });
-
-        const balanceLastYear = await tx.tb_balance.create({
-          data: {
-            amount: 12,
-            receive_date: new Date("2024-01-01"),
-            expired_date: createDateFromString(new Date(2026, 3, 1)),
-            NIK: user.NIK,
-          },
-        });
-
-        await tx.tb_balance_adjustment.create({
-          data: {
-            actor: "system",
-            balance_year: balanceLastYear.receive_date.getFullYear(),
-            NIK: balanceLastYear.NIK,
-            notes: "Created balance",
-            id_balance: balanceLastYear.id_balance,
-            adjustment_value: balanceLastYear.amount,
-          },
-        });
-
-        const balanceThisYear = await tx.tb_balance.create({
-          data: {
-            amount: 12,
-            receive_date: new Date("2025-01-01"),
-            expired_date: createDateFromString(new Date(2027, 3, 1)),
-            NIK: user.NIK,
-          },
-        });
-
-        await tx.tb_balance_adjustment.create({
-          data: {
-            actor: "system",
-            balance_year: balanceThisYear.receive_date.getFullYear(),
-            NIK: balanceThisYear.NIK,
-            notes: "Created balance",
-            id_balance: balanceThisYear.id_balance,
-            adjustment_value: balanceThisYear.amount,
-          },
+      for (const leave of specialLeaves) {
+        await tx.tb_special_leave.create({
+          data: leave,
         });
       }
+
+      // ===========================
+      // 8. Seed Mandatory Leave
+      // ===========================
+      const mandatoryLeaves = [
+        {
+          title: "Tahun Baru Masehi",
+          is_active: true,
+          description: "Libur nasional memperingati Tahun Baru",
+          start_date: new Date("2025-01-01"),
+          end_date: new Date("2025-01-01"),
+        },
+        {
+          title: "Isra Miraj",
+          is_active: true,
+          description: "Peringatan Isra Miraj Nabi Muhammad SAW",
+          start_date: new Date("2025-01-27"),
+          end_date: new Date("2025-01-27"),
+        },
+        {
+          title: "Tahun Baru Imlek",
+          is_active: true,
+          description: "Tahun Baru China / Imlek",
+          start_date: new Date("2025-02-01"),
+          end_date: new Date("2025-02-01"),
+        },
+        {
+          title: "Hari Raya Nyepi",
+          is_active: true,
+          description: "Tahun Baru Saka umat Hindu",
+          start_date: new Date("2025-03-29"),
+          end_date: new Date("2025-03-29"),
+        },
+        {
+          title: "Wafat Isa Almasih",
+          is_active: true,
+          description: "Peringatan wafatnya Isa Almasih",
+          start_date: new Date("2025-04-18"),
+          end_date: new Date("2025-04-18"),
+        },
+        {
+          title: "Hari Raya Idul Fitri",
+          is_active: true,
+          description: "Lebaran Hari Raya Umat Islam",
+          start_date: new Date("2025-03-31"),
+          end_date: new Date("2025-04-01"),
+        },
+        {
+          title: "Hari Buruh Internasional",
+          is_active: true,
+          description: "Hari Buruh Nasional",
+          start_date: new Date("2025-05-01"),
+          end_date: new Date("2025-05-01"),
+        },
+        {
+          title: "Kenaikan Isa Almasih",
+          is_active: true,
+          description: "Peringatan kenaikan Isa Almasih",
+          start_date: new Date("2025-05-29"),
+          end_date: new Date("2025-05-29"),
+        },
+        {
+          title: "Hari Raya Idul Adha",
+          is_active: true,
+          description: "Hari Raya Qurban Umat Islam",
+          start_date: new Date("2025-06-06"),
+          end_date: new Date("2025-06-06"),
+        },
+        {
+          title: "Tahun Baru Islam",
+          is_active: true,
+          description: "Tahun Baru Hijriyah",
+          start_date: new Date("2025-06-26"),
+          end_date: new Date("2025-06-26"),
+        },
+        {
+          title: "Hari Kemerdekaan RI",
+          is_active: true,
+          description: "Memperingati Proklamasi Kemerdekaan Indonesia",
+          start_date: new Date("2025-08-17"),
+          end_date: new Date("2025-08-17"),
+        },
+        {
+          title: "Maulid Nabi Muhammad SAW",
+          is_active: true,
+          description: "Hari kelahiran Nabi Muhammad SAW",
+          start_date: new Date("2025-09-05"),
+          end_date: new Date("2025-09-05"),
+        },
+        {
+          title: "Hari Natal",
+          is_active: true,
+          description: "Hari kelahiran Yesus Kristus",
+          start_date: new Date("2025-12-25"),
+          end_date: new Date("2025-12-25"),
+        },
+      ];
+
+      for (const leave of mandatoryLeaves) {
+        await tx.tb_mandatory_leave.create({
+          data: leave,
+        });
+      }
+    },
+    {
+      timeout: 60000000,
+      maxWait: 6000,
     }
-
-        const specialLeaves = [
-      {
-        title: "Cuti Melahirkan",
-        applicable_gender: "f",
-        duration: 3,
-        type: "month",
-        is_active: true,
-        description: "Cuti melahirkan untuk karyawan perempuan",
-      },
-      {
-        title: "Cuti Haid",
-        applicable_gender: "f",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description: "Cuti haid untuk karyawan perempuan",
-      },
-      {
-        title: "Cuti Menikah",
-        applicable_gender: "mf",
-        duration: 3,
-        type: "day",
-        is_active: true,
-        description: "Cuti menikah untuk karyawan",
-      },
-      {
-        title: "Cuti Menikahkan Anak",
-        applicable_gender: "mf",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description: "Cuti menikahkan anak untuk karyawan",
-      },
-      {
-        title: "Cuti Mengkhitankan Anak",
-        applicable_gender: "mf",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description: "Cuti mengkhitankan anak untuk karyawan",
-      },
-      {
-        title: "Cuti Membaptis Anak",
-        applicable_gender: "mf",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description: "Cuti membaptis anak untuk karyawan",
-      },
-      {
-        title: "Cuti Istri Melahirkan/Keguguran",
-        applicable_gender: "m",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description: "Cuti karena istri melahirkan atau keguguran",
-      },
-      {
-        title: "Cuti Keluarga Inti Meninggal",
-        applicable_gender: "mf",
-        duration: 2,
-        type: "day",
-        is_active: true,
-        description:
-          "Cuti karena meninggal suami/istri/orang tua/mertua/anak/menantu",
-      },
-      {
-        title: "Cuti Anggota Serumah Meninggalll",
-        applicable_gender: "mf",
-        duration: 1,
-        type: "day",
-        is_active: true,
-        description: "Cuti karena meninggal anggota keluarga serumah",
-      },
-    ];
-
-    for (const leave of specialLeaves) {
-      await tx.tb_special_leave.create({
-        data: leave,
-      });
-    }
-
-    const mandatoryLeaves = [
-      {
-        title: "Tahun Baru Masehi",
-        is_active: true,
-        description: "Libur nasional memperingati Tahun Baru",
-        start_date: new Date("2025-01-01"),
-        end_date: new Date("2025-01-01"),
-      },
-      {
-        title: "Isra Miraj",
-        is_active: true,
-        description: "Peringatan Isra Miraj Nabi Muhammad SAW",
-        start_date: new Date("2025-01-27"),
-        end_date: new Date("2025-01-27"),
-      },
-      {
-        title: "Tahun Baru Imlek",
-        is_active: true,
-        description: "Tahun Baru China / Imlek",
-        start_date: new Date("2025-02-01"),
-        end_date: new Date("2025-02-01"),
-      },
-      {
-        title: "Hari Raya Nyepi",
-        is_active: true,
-        description: "Tahun Baru Saka umat Hindu",
-        start_date: new Date("2025-03-29"),
-        end_date: new Date("2025-03-29"),
-      },
-      {
-        title: "Wafat Isa Almasih",
-        is_active: true,
-        description: "Peringatan wafatnya Isa Almasih",
-        start_date: new Date("2025-04-18"),
-        end_date: new Date("2025-04-18"),
-      },
-      {
-        title: "Hari Raya Idul Fitri",
-        is_active: true,
-        description: "Lebaran Hari Raya Umat Islam",
-        start_date: new Date("2025-03-31"),
-        end_date: new Date("2025-04-01"),
-      },
-      {
-        title: "Hari Buruh Internasional",
-        is_active: true,
-        description: "Hari Buruh Nasional",
-        start_date: new Date("2025-05-01"),
-        end_date: new Date("2025-05-01"),
-      },
-      {
-        title: "Kenaikan Isa Almasih",
-        is_active: true,
-        description: "Peringatan kenaikan Isa Almasih",
-        start_date: new Date("2025-05-29"),
-        end_date: new Date("2025-05-29"),
-      },
-      {
-        title: "Hari Raya Idul Adha",
-        is_active: true,
-        description: "Hari Raya Qurban Umat Islam",
-        start_date: new Date("2025-06-06"),
-        end_date: new Date("2025-06-06"),
-      },
-      {
-        title: "Tahun Baru Islam",
-        is_active: true,
-        description: "Tahun Baru Hijriyah",
-        start_date: new Date("2025-06-26"),
-        end_date: new Date("2025-06-26"),
-      },
-      {
-        title: "Hari Kemerdekaan RI",
-        is_active: true,
-        description: "Memperingati Proklamasi Kemerdekaan Indonesia",
-        start_date: new Date("2025-08-17"),
-        end_date: new Date("2025-08-17"),
-      },
-      {
-        title: "Maulid Nabi Muhammad SAW",
-        is_active: true,
-        description: "Hari kelahiran Nabi Muhammad SAW",
-        start_date: new Date("2025-09-05"),
-        end_date: new Date("2025-09-05"),
-      },
-      {
-        title: "Hari Natal",
-        is_active: true,
-        description: "Hari kelahiran Yesus Kristus",
-        start_date: new Date("2025-12-25"),
-        end_date: new Date("2025-12-25"),
-      },
-    ];
-
-    for (const leave of mandatoryLeaves) {
-      await tx.tb_mandatory_leave.create({
-        data: leave,
-      });
-    }
-  });
+  );
 }
 
 manualSeed()

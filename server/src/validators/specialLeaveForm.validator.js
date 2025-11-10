@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+// validasi form untuk create data special leave
 export const specialLeaveForm = z.object({
   id_special: z.string().uuid().max(50).optional(), 
   title: z.string().max(255, "Maximum title 255 characters"),

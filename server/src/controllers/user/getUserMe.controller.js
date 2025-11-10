@@ -1,10 +1,14 @@
 import { getUserByNIK } from "../../services/user/getUserByNIK.service.js";
 import { decodeToken } from "../../utils/jwt.js";
 
+/**
+ *  fungsi ini mengembalikan data user beserta sisa jatah cutinya berdasarkan nik
+ *  yang ada pada token jwt.
+ */
 export const getUserMe = async (req, res, next) => {
     try {
-        const decode = await decodeToken(req.cookies["Authorization"]);
-        const { NIK } = decode;
+        const decodedToken = await decodeToken(req.cookies["Authorization"]);
+        const { NIK } = decodedToken;
 
         const user = await getUserByNIK(NIK);
 

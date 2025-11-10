@@ -15,5 +15,7 @@ export const getUserCurrentYearLeaveBalance = async (NIK) => {
         }
     });
 
+    console.log(latestBalance)
+
     return latestBalance?.amount || 0;
 };

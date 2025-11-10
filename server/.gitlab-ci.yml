@@ -1,0 +1,52 @@
+stages:
+  - env_preparation
+  - build_docker
+  - deploy_staging
+
+env_preparation:
+  stage: env_preparation
+  variables:
+    SOURCE_BRANCH: $ENV_STAGING
+  script:
+    - touch .env
+    - echo $SOURCE_BRANCH
+    - cp $SOURCE_BRANCH .env.development
+    - ls -lah
+    - cat .env.development
+  artifacts:
+    paths:
+      - ".env.development"
+    expire_in: 1 days
+  # tags:
+  #   - new-shared
+
+build_docker:
+  stage: build_docker
+  image: registry-v2.stagingapps.net/build/docker:18.09.7
+  services:
+    - name: registry-v2.stagingapps.net/build/docker:18.09.7-dind
+  needs:
+    - job: env_preparation
+      artifacts: true
+  script:
+    - docker info
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" registry-v2.stagingapps.net
+    - docker build -t "${CI_REGISTRY_IMAGE}:latest" .
+    - docker tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:$CI_COMMIT_SHORT_SHA"
+    - docker push "${CI_REGISTRY_IMAGE}:$CI_COMMIT_SHORT_SHA"
+  only:
+    - staging
+  # tags:
+  #   - new-shared
+
+deploy_staging:
+  stage: deploy_staging
+  script:
+    - sed -i "s,_IMAGE:VERSION_,${CI_REGISTRY_IMAGE}:$CI_COMMIT_SHORT_SHA," docker-compose.yml
+    - scp docker-compose.yml ${USER_STAGING}@${HOST_STAGING}:${DIRECTORY_STAGING}
+    - ssh ${USER_STAGING}@${HOST_STAGING} docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" registry-v2.stagingapps.net
+    - ssh ${USER_STAGING}@${HOST_STAGING} "cd ${DIRECTORY_STAGING} && docker compose up -d"
+  only:
+    - staging
+  tags:
+    - stg-runner-77

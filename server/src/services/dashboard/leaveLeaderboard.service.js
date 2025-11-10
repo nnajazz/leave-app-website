@@ -1,128 +1,66 @@
 import prisma from "../../utils/client.js";
 
-export const leaveLeaderboard = async (order = "desc") => {
-    const users = await prisma.tb_users.findMany({
-        where: {
-            NOT: {
-                tb_statuses: {
-                    name: "Magang"
-                }
-            }
-        },
-        include: {
-            tb_roles: true,
-            tb_balance: true,
-            tb_leave: {
-                where: {
-                    status: 'approved',
-                },
-                select: {
-                    total_days: true,
-                    start_date: true,
-                    end_date: true,
-                    leave_type: true
-                }
-            },
-            tb_balance_adjustment: true
-        }
-    });
-
+export const leaveLeaderboard = (order = "desc") => {
+  return prisma.tb_users.findMany({
+    where: {
+      tb_statuses: {
+        name: { not: "Magang" }
+      }
+    },
+    include: {
+      tb_roles: true,
+      tb_balance: true,
+      tb_leave: { where: { status: "approved" } },
+      tb_balance_adjustment: true
+    }
+  }).then(users => {
     const today = new Date();
     const currentYear = today.getFullYear();
 
     const leaderboard = users.map(user => {
-        const joinDate = new Date(user.join_date);
+      const joinDate = new Date(user.join_date);
 
-        //bulan pertama bekerja
-        let effectiveJoin = new Date(joinDate)
-        if (joinDate.getDate() > 20) {
-            effectiveJoin.setMonth(effectiveJoin.getMonth() + 1)
-        }
-        effectiveJoin.setDate(1)
+      let effectiveJoin = new Date(joinDate);
+      if (joinDate.getDate() > 20) effectiveJoin.setMonth(effectiveJoin.getMonth() + 1);
+      effectiveJoin.setDate(1);
 
-        //bulan mendapatkan hak cuti (setelah 3 bulan kerja)
-        let eligibleDate = new Date(effectiveJoin)
-        eligibleDate.setMonth(eligibleDate.getMonth() + 3)
-        eligibleDate.setDate(1)
+      let eligibleDate = new Date(effectiveJoin);
+      eligibleDate.setMonth(effectiveJoin.getMonth() + 3);
+      eligibleDate.setDate(1);
 
-        let joinMonthDiff = (today.getFullYear() - effectiveJoin.getFullYear()) * 12 +
-            (today.getMonth() - effectiveJoin.getMonth());
-        if (today.getDate() >= effectiveJoin.getDate()) {
-            joinMonthDiff += 1
-        }
+      if (today < eligibleDate) return null;
 
-        //ambil 12 bulan kebelakang
-        let fromDate
-        if (joinMonthDiff >= 16) {
-            fromDate = new Date(today)
-            fromDate.setMonth(fromDate.getMonth() - 12)
-        } else {
-            fromDate = new Date(effectiveJoin)
-        }
+      const currentBalance = user.tb_balance.find(b => new Date(b.receive_date).getFullYear() === currentYear);
+      const lastYearBalance = user.tb_balance.find(b => new Date(b.receive_date).getFullYear() === currentYear - 1);
 
-        //ambil 12 bulan ke depan
-        let toDate = new Date(today)
-        toDate.setMonth(toDate.getMonth() + 12)
+      const thisYearAmount = currentBalance ? currentBalance.amount : 0;
+      const lastYearAmount = lastYearBalance ? lastYearBalance.amount : 0;
+      const totalBalance = thisYearAmount + lastYearAmount;
 
-        //total cuti yg sudah diberikan dalam periode 24 bulan terakhir
-        const givenLeave = user.tb_balance_adjustment.filter(adj => {
-            const created = new Date(adj.created_at);
-            return created >= fromDate && created <= toDate;
-        })
-            .reduce((sum, adj) => sum + (adj.adjustment_value || 0), 0);
+      let monthsSinceEligible = (today.getFullYear() - eligibleDate.getFullYear()) * 12 +
+                                (today.getMonth() - eligibleDate.getMonth()) + 1;
+      monthsSinceEligible = Math.max(monthsSinceEligible, 0);
+      const monthsCount = Math.min(monthsSinceEligible, 24);
 
-        //total cuti terpakai 
-        const usedLeave = user.tb_leave.filter(l => {
-            const start = new Date(l.start_date);
+      const averageLeave = monthsCount > 0 ? Number((totalBalance / monthsCount).toFixed(2)) : 0;
 
-            if (l.leave_type === 'mandatory_leave') {
-                return start >= fromDate && start <= toDate
-            } else {
-                return start >= fromDate && start <= toDate && start >= eligibleDate
-            }
-        })
-            .reduce((sum, l) => sum + (l.total_days || 0), 0);
-
-        //sisa cuti
-        const remainingLeave = givenLeave - usedLeave
-
-        //average leave range (0-1)
-        const averageLeave = givenLeave > 0
-            ? remainingLeave / givenLeave
-            : 0;
-
-        // Jatah cuti tahun ini
-        const currentBalance = user.tb_balance.find(
-            b => new Date(b.receive_date).getFullYear() === currentYear
-        );
-
-        // Jatah cuti tahun lalu
-        const lastYearBalance = user.tb_balance.find(
-            b => new Date(b.receive_date).getFullYear() === currentYear - 1
-        );
-
-        const thisYearAmount = currentBalance ? currentBalance.amount : 0;
-        const lastYearAmount = lastYearBalance ? lastYearBalance.amount : 0;
-
-        return {
-            NIK: user.NIK,
-            name: user.fullname,
-            role: user.tb_roles.slug,
-            this_year: thisYearAmount,
-            last_year: lastYearAmount,
-            total_amount: lastYearAmount + thisYearAmount,
-            given_leave: givenLeave,
-            used_leave: usedLeave,
-            average_leave: Number(averageLeave.toFixed(2))
-        };
+      return {
+        NIK: user.NIK,
+        name: user.fullname,
+        role: user.tb_roles?.slug ?? null,
+        this_year: thisYearAmount,
+        last_year: lastYearAmount,
+        total_amount: totalBalance,
+        average_leave: averageLeave
+      };
     });
 
-    // urutkan berdasarkan sisa cuti
-    leaderboard.sort((a, b) => {
-        return order === "asc"
-            ? a.average_leave - b.average_leave
-            : b.average_leave - a.average_leave;
-    });
+    const filteredLeaderboard = leaderboard.filter(u => u !== null);
 
-    return leaderboard;
+    filteredLeaderboard.sort((a, b) => 
+      order === "asc" ? a.average_leave - b.average_leave : b.average_leave - a.average_leave
+    );
+
+    return filteredLeaderboard;
+  });
 };

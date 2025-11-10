@@ -8,22 +8,15 @@ cron.schedule('30 0 1 * *', async () => {
   console.log('⏳ [Cron] Mulai penambahan cuti otomatis...');
 
   try {
-    const allUsers = await prisma.tb_users.findMany({
-      orderBy: {fullname : 'asc'},
-      include: {
-        tb_roles: true,
-        tb_statuses: true
-      }
-    });
-    console.log(`👤 Total user: ${allUsers.length}`);
-    for (const user of allUsers) {
-      await updateLeaveBalance(user);
-    }
+    await updateLeaveBalance();
     console.log('[Cron] Penambahan cuti selesai.');
   } catch (error) {
     console.error('[Cron] Gagal memperbarui cuti:', error);
   }
+}, {
+  timezone: 'Asia/Jakarta'
 });
+
 
 
 // Cron: jalan setiap hari jam 00:00

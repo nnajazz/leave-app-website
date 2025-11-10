@@ -6,8 +6,8 @@ import { importBalanceAdjustment } from '../controllers/upload/importBalanceAdju
 import { validateRole } from '../middlewares/validateRole.middleware.js';
 const uploadRoutes = express.Router();
 
-uploadRoutes.post('/import', validateRole('super_admin'), uploadFile, importFile);
-uploadRoutes.post('/balance-adjustment', validateRole('super_admin', 'admin'), uploadFile, importBalanceAdjustment)
-uploadRoutes.get('/export', validateRole('super_admin'), exportFile);
+uploadRoutes.post('/import', validateRole('super-admin'), uploadFile, importFile);
+uploadRoutes.post('/balance-adjustment', validateRole('super-admin', 'admin', 'hr-manager'), uploadFile, importBalanceAdjustment)
+uploadRoutes.get('/export', validateRole('super-admin'), exportFile);
 
 export default uploadRoutes

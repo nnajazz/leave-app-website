@@ -11,18 +11,18 @@ export const logout = async (req, res, next) => {
         const decode = decodeToken(token)
 
         // check if token are exist in database.
-        await deleteToken(decode.NIK, deviceId);
+        await deleteToken(decode.nik, deviceId);
 
-        res.clearCookie("Authorization", {
+
+        const authCookieOptions = {
             httpOnly: true,
             secure: true,
             path: "/"
-        });
-        res.clearCookie("device-id", {
-            httpOnly: true,
-            secure: true,
-            path: "/"
-        });
+        };
+
+
+        res.clearCookie("Authorization", authCookieOptions);
+        res.clearCookie("device-id", authCookieOptions);
 
         res.status(200).json({
             success: true,

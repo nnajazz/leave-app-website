@@ -1,6 +1,15 @@
 import prisma from "../../utils/client.js"
 import { createDateFromString, formatDateIndonesia } from "../../utils/leaves.utils.js"
 
+/**
+ * fungsi ini mengembalikan gabungan data modifikasi balance (balance adjustment) dan pengajuan cuti karyawan (leave) berdasarkan nik
+ * 
+ * @param {*} nik 
+ * @param {*} limit 
+ * @param {*} page 
+ * @param {*} dataFilter
+ * @returns 
+ */
 export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter) => {
     try {
         const offset = (page - 1) * limit
@@ -19,12 +28,16 @@ export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter)
             }
         })
 
+        // jumlah data yang nantinya digunakan untuk acuan pagination
         const totalData = totalLeave + totalAdjustment
 
+        // menggabungkan data dari dua tabel secara vertikal menggunakan union all
+        // query dibawah menggunakan raw query karena prisma (ORM yang digunakan) tidak mensupport operasi union
         const data = await prisma.$queryRaw`  
         SELECT * FROM (
         SELECT 'leave' AS data_source, 
-        l."NIK", 
+        l."NIK",
+        l.fullname,
         l.id_leave, 
         NULL AS id_adjustment,
         l.title,
@@ -49,6 +62,7 @@ export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter)
 
         SELECT 'adjustment' AS data_source,
         a."NIK",
+        a.fullname,
         NULL AS id_leave,
         a.id_adjustment,
         NULL AS title,
@@ -82,6 +96,7 @@ export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter)
                 item.start_date = startDate
                 item.end_date = endDate
 
+                // menghapus atribut terkait data adjustment
                 delete item.id_adjustment
                 delete item.adjustment_value
                 delete item.notes
@@ -90,6 +105,7 @@ export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter)
             }
 
             if (item.data_source === "adjustment") {
+                // menghapus atribut terkait data leave
                 delete item.id_leave
                 delete item.title
                 delete item.leave_type
@@ -102,8 +118,9 @@ export const getUserHistoryByNIK = async (nik, limit = 10, page = 1, dataFilter)
                 delete item.changed_by
                 delete item.reason_log
 
+                // memisahkan tanggal dan jam dari field created_at dan mengkonversi menjadi tanggal lokal
                 item.date = formatDateIndonesia(createDateFromString(item.created_at))
-                item.time = item.created_at.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: undefined }).replace('.', ':')
+                item.time = item.created_at.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: undefined, timeZone: 'Asia/Jakarta'}).replace('.', ':')
             }
 
             return item

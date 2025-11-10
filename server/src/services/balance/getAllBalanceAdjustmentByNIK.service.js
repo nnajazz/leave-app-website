@@ -1,82 +1,101 @@
-import prisma from "../../utils/client.js"
-import { createDateFromString, formatDateIndonesia } from "../../utils/leaves.utils.js"
+import prisma from "../../utils/client.js";
+import { getApiEmployee } from "../../utils/getApiEmployee.utils.js";
+import {
+  createDateFromString,
+  formatDateIndonesia,
+} from "../../utils/leaves.utils.js";
 
-export const getAllBalanceAdjustmentByNIK = async (page, limit, nik, searchValue, startDate, endDate, balanceYear) => {
-    try {
-        const offset = (page - 1) * limit
-        const filter = {
-            NIK: nik,
-            created_at: {
-                gte: startDate || undefined,
-                lte: endDate || undefined
+/**
+ * fungsi ini mengembalikan semua data history modifikasi balance karyawan berdasarkan nik
+ *
+ * @param {*} page - halaman pagination
+ * @param {*} limit - limit data yang dikembalikan
+ * @param {*} startDate - filter data berdasarkan tanggal pada field created_at
+ * @param {*} endDate - filter data berdasarkan tanggal pada field created_at
+ * @param {*} balanceYear - filter data berdasarkan tahun pada field balance_year
+ * @param {*} searchValue - fitur search yang mengarah pada 3 field yaitu, fullname, NIK dan actor
+ * @returns
+ */
+export const getAllBalanceAdjustmentByNIK = async (
+  page,
+  limit,
+  nik,
+  searchValue,
+  startDate,
+  endDate,
+  balanceYear
+) => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // filter opsional yang dapat diterapkan, jika variable yang digunakan untuk memfilter data tidak diisi maka digantikan dengan undefined (dalam filtering prisma ini berarti diabaikan) kecuali untuk field nik
+    const filter = {
+      NIK: nik,
+      created_at: {
+        gte: startDate || undefined,
+        lte: endDate || undefined,
+      },
+      balance_year: balanceYear || undefined,
+      OR: searchValue
+        ? [
+            {
+              tb_users: {
+                fullname: { contains: searchValue, mode: "insensitive" },
+              },
             },
-            balance_year: balanceYear || undefined,
-            OR: [
-                {
-                    tb_users: {
-                        fullname: {
-                            contains: searchValue || undefined,
-                            mode: "insensitive"
-                        }
-                    }
-                },
-                {
-                    NIK: {
-                        contains: searchValue || undefined,
-                        mode: "insensitive"
-                    }
-                },
-                {
-                    actor: {
-                        contains: searchValue || undefined,
-                        mode: "insensitive"
-                    }
-                }
-            ]
-        }
+            { NIK: { contains: searchValue, mode: "insensitive" } },
+            { actor: { contains: searchValue, mode: "insensitive" } },
+          ]
+        : undefined,
+    };
 
-        const totalLogs = await prisma.tb_balance_adjustment.count({where: filter });
+    // total data untuk acuan pagination
+    const totalLogs = await prisma.tb_balance_adjustment.count({
+      where: filter,
+    });
 
-        console.log('test', searchValue);
-        const logs = await prisma.tb_balance_adjustment.findMany({
-            skip: offset,
-            take: limit,
-            omit: {
-                id_adjustment: true
-            },
-            where: filter,
-            orderBy: {
-                created_at: 'desc'
-            },
-            include: {
-                tb_users: true
-            }
-        })
+    // query seluruh data modifikasi balance di sort dari yang terbaru
+    const logs = await prisma.tb_balance_adjustment.findMany({
+      skip: offset,
+      take: limit,
+      where: filter,
+      orderBy: {
+        created_at: "desc",
+      },
+      include: { tb_users: true },
+    });
 
-        const logsModified = logs.map((log) =>
-        ({
-            NIK: log.NIK,
-            name: log.tb_users.fullname,
-            adjustment_value: log.adjustment_value,
-            balance_year: log.balance_year.toString(),
-            date: formatDateIndonesia(createDateFromString(log.created_at)),
-            time: log.created_at.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: undefined }).replace('.', ':'),
-            actor: log.actor,
-            notes: log.notes
-        }))
+    // modifikasi format data untuk ditampilkan di client
+    const logsModified = logs.map(log => ({
+      id: log.id_adjustment,
+      NIK: log.NIK,
+      name: log.tb_users?.fullname || log.fullname,
+      adjustment_value: log.adjustment_value,
+      balance_year: log.balance_year != null ? String(log.balance_year) : undefined,
+      date: formatDateIndonesia(createDateFromString(log.created_at)),
+      time: log.created_at.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: undefined,
+        timeZone: 'Asia/Jakarta'
+      }).replace(/\./g, ':'),
+      actor: log.actor,
+      notes: log.notes
+    }));
 
-        return {
-            data: {
-                data: logsModified, 
-                pagination: {
-                    total: totalLogs,
-                    totalPages: Math.ceil(totalLogs / limit),
-                    currentPage: page,
-                    limit: limit
-                }
-            }
-        };
-    } catch (error) {
-        throw error;
-    }
+
+    return {
+      data: {
+        data: logsModified,
+        pagination: {
+          total: totalLogs,
+          totalPages: Math.ceil(totalLogs / limit),
+          currentPage: page,
+          limit: limit,
+        },
+      },
+    };
+  } catch (error) {
+    throw error;
+  }
 };

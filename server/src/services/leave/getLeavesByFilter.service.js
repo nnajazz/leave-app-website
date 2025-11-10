@@ -5,6 +5,7 @@ export const getLeavesByFilterService = async (type, value, page, limit) => {
         status: 'pending'
     };
 
+    // Filter berdasarkan tipe cuti jika ada
     if (type) {
         const typeMapping = {
             personal_leave: 'personal_leave',
@@ -16,37 +17,39 @@ export const getLeavesByFilterService = async (type, value, page, limit) => {
         where.leave_type = mapped;
     }
 
+    // Jika ada nilai pencarian (untuk nama)
     if (value) {
-        where.OR = [
-            { tb_users: { is: { fullname: { contains: value, mode: 'insensitive' } } } }
-        ];
+        where.fullname = {
+            contains: value,
+            mode: 'insensitive',
+        };
     }
 
     const skip = (page - 1) * limit;
 
-    const leaves = await prisma.tb_leave.findMany({
-        orderBy: { created_at: 'desc' },
-        where,
-        skip,
-        take: limit,
-        include: {
-            tb_users: {
-                select: { fullname: true }
-            }
-        }
-    });
+    // Menjalankan query untuk mengambil data cuti dan total hitungan secara paralel
+    const [leaves, total] = await Promise.all([
+        prisma.tb_leave.findMany({
+            orderBy: { created_at: 'desc' },
+            where,
+            skip,
+            take: limit,
+        }),
+        prisma.tb_leave.count({ where })
+    ]);
 
-    const data = leaves.map(leave => ({
-        ...leave,
-        name: leave.tb_users.fullname
-    }));
+    if (leaves.length === 0) {
+        return {
+            data: { data: [], pagination: { total: 0, totalPages: 0, currentPage: page, limit: limit } }
+        };
+    }
 
-    const total = await prisma.tb_leave.count({ where });
     const totalPages = Math.ceil(total / limit);
 
+    // Mengembalikan data yang sudah digabungkan beserta informasi paginasi
     return {
         data: {
-            data: data, 
+            data: leaves,
             pagination: {
                 total: total,
                 totalPages: totalPages,

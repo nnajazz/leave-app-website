@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+// validasi form untuk membuat data mandatory
 export const mandatoryLeaveForm = z.object({
   id_mandatory: z.string().uuid().max(50).optional(),
   title: z.string().max(255, "Maximum title is 255 characters"),

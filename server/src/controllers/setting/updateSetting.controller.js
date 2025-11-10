@@ -1,26 +1,33 @@
 import { serviceUpdateSetting } from "../../services/setting/updateSetting.service.js";
 import { formatSettingResponse } from "../../utils/formatSettingResponse.utils.js";
 
+// Controller untuk update data setting
 export const updateSetting = async (req, res, next) => {
     const data = {};
 
+    // Loop semua key di req.body
     for (const key in req.body) {
         if (req.body[key] !== undefined) {
             data[key] = req.body[key];
         }
     }
 
+    // Cek apakah ada file upload dengan field "light_image"
     const lightFile = req.files && req.files['light_image'] ? req.files['light_image'][0].filename : null;
     if (lightFile) {
+        // Simpan path URL lengkap untuk light_image ke dalam data
         data.light_image = `${req.protocol}://${req.get('host')}/uploads/${lightFile}`;
     }
 
+    // Cek apakah ada file upload dengan field "dark_image"
     const darkFile = req.files && req.files['dark_image'] ? req.files['dark_image'][0].filename : null;
     if (darkFile) {
+        // Simpan path URL lengkap untuk dark_image ke dalam data
         data.dark_image = `${req.protocol}://${req.get('host')}/uploads/${darkFile}`;
     }
 
     try {
+        // Panggil service untuk update data setting ke database dengan data yang sudah disiapkan
         const settings = await serviceUpdateSetting(data);
 
         res.status(200).json({

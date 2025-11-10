@@ -1,21 +1,29 @@
 import prisma from "../../utils/client.js";
 import { createDateFromString } from "../../utils/leaves.utils.js";
 
+/**
+ * fungsi ini digunakan untuk memodifikasi status pada data pengajuan cuti serta mengurangi atau menambahkan jatah cuti karyawan berdasarkan kondisi approval
+ * @param {*} id 
+ * @param {*} status 
+ * @param {*} reason 
+ * @param {*} nik 
+ * @param {*} actor_fullname 
+ * @returns data pengajuan cuti setelah dimodifikasi
+ */
 export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
     try {
+        // konfigurasi tanggal untuk validasi
         const currentDate = createDateFromString(new Date())
-        console.log(currentDate)
+        const previousDateEndOfTheDay = createDateFromString(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1, 23, 59, 59))
         const currentYear = currentDate.getFullYear();
-        const currentDateFirstMonth = createDateFromString(new Date(currentYear, 0, 1))
         const currentYearLastMonth = createDateFromString(new Date(currentYear, 11, 31, 23, 59, 59));
-        console.log(currentYearLastMonth)
 
+        // mengambil data pengajuan cuti berdasarkan id berserta dengan history perubahan cuti terbaru
         const data = await prisma.tb_leave.findUnique({
             where: {
                 id_leave: id,
             },
             include: {
-                tb_users: true,
                 tb_leave_log: {
                     take: 1,
                     orderBy: {
@@ -32,20 +40,23 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             throw err;
         }
 
+        // validasi bahwa user tidak bisa memodifikasi pengajuan cutinya sendiri kecuali untuk cuti dengan tipe mandatory atau wajib.
         if (data.NIK === nik && data.leave_type !== "mandatory_leave") {
             const err = new Error("You cannot approve or reject your own leave request.");
             err.statusCode = 403;
             throw err;
         }
 
-        const start = createDateFromString(new Date(data.start_date));
-        const end = createDateFromString(new Date(data.end_date));
+        // tanggal mulai dan berakhirnya cuti
+        const start = data.start_date;
+        const end = data.end_date;
 
+        // approval pengajuan cuti selain cuti dengan tipe spesial hanya dapat dilakukan satu hari kedepan
         if (start <= currentDate && data.leave_type !== 'special_leave') {
             const err = new Error("The start date of the leave has passed the current date");
             err.statusCode = 400;
             throw err;
-        } else if (start < currentDate && data.leave_type === 'special_leave') {
+        } else if (start < previousDateEndOfTheDay && data.leave_type === 'special_leave') {
             const err = new Error("The start date of the leave has passed the current date");
             err.statusCode = 400;
             throw err;
@@ -57,6 +68,7 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             throw err;
         }
 
+        // memastikan apakah terdapat cuti di dalam jangka waktu tanggal yang sama dengan status kecuali rejected 
         const existing = await prisma.tb_leave.findFirst({
             where: {
                 NIK: data.NIK,
@@ -75,11 +87,18 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             },
         });
 
+
+        /*
+        Mengambil data jatah cuti karyawan yang belum expired (kecuali untuk pembatalan cuti setelah di approved)
+        [0] = jatah cuti tahun ini
+        [1] = jatah cuti tahun sebelumnya (jika ada)
+        [2] = jatah cuti 2 tahun sebelumnya (jika ada)
+        */
         const userBalance = await prisma.tb_balance.findMany({
             where: {
                 NIK: data.NIK,
                 expired_date: {
-                    gt: status === "approved" ? currentDate : undefined,
+                    gt: status === "approved" ? start : undefined,
                 },
                 receive_date: {
                     lte: currentYearLastMonth
@@ -87,16 +106,14 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             },
             take: 3,
             orderBy: {
-                expired_date: "desc" // [0] = currentYearBalance && [-1] = lastYearBalance
+                expired_date: "desc"
             }
         });
 
-        console.log('before: ', userBalance);
 
         let updatedBalances = [...userBalance];
-        let balancesUsed = [];
-        let currentBalancesOnly = [];
-        let historyBalancesUsed = [];
+        let balancesUsed = []; // array untuk semua balance yang digunakan (reduce)
+        let historyBalancesUsed = []; // array untuk semua balance yang sebelumnya digunakan (restore)
         let totalDaysUsed = data.total_days;
 
         if (data.tb_leave_log.length !== 0) {
@@ -104,18 +121,33 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
         }
 
         const isStartDateNextYear = currentYear < data.start_date.getFullYear();
-        const currentYearBalance = userBalance.find(balance => balance.receive_date.getFullYear() === currentYear);
 
-        if ((isStartDateNextYear && totalDaysUsed > currentYearBalance.amount) && data.leave_type === "personal_leave") {
-            const err = new Error(`Cannot approve leave for next year because total days ${totalDaysUsed} exceed current year\'s balance ${currentYearBalance.amount}`);
-            err.statusCode = 400;
-            throw err;
-        }
+        // sisa jatah cuti yang tersisa
+        const totalAmountAvailable = updatedBalances.reduce((sum, current) => sum + current.amount, 0);
 
+        //logic utama pengurangan dan penambahan balance sesuai kondisi kecuali tipe cuti special yang tidak mengurangi jatah cuti
         if (data.leave_type !== "special_leave") {
-            // reduce
-            // array di loop ini disort dari paling lama/ [-1] = currentBalance
+            /*
+            reduce:
+            pengurangan jatah cuti karyawan berdasarkan total_days pada data pengajuan cuti
+            - pending -> approved
+            - rejected -> approved
+            */
             if ((data.status === "pending" || data.status === "rejected") && status === "approved") {
+
+                // validasi jika amount pada balance cukup atau tidak dengan tipe cuti personal
+                if ((isStartDateNextYear && totalDaysUsed > totalAmountAvailable) && data.leave_type === "personal_leave") {
+                    const err = new Error(`Cannot approve leave for next year because total days ${totalDaysUsed} exceed current year\'s balance ${totalAmountAvailable}`);
+                    err.statusCode = 400;
+                    throw err;
+                }
+
+                // validasi jika amount pada balance cukup atau tidak dengan tipe cuti personal
+                if (data.leave_type == "personal_leave" && totalDaysUsed > totalAmountAvailable) {
+                    const error = new Error(`Insufficient leave balance, total balance available: ${totalAmountAvailable}`);
+                    error.statusCode = 400;
+                    throw error;
+                }
 
                 if (existing) {
                     const err = new Error("There's overlap leave");
@@ -123,35 +155,38 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
                     throw err;
                 }
 
+                /* 
+                   array di fungsi ini disort dari yang paling lama
+                   kemudian mengurangi amount setiap record balance 
+                */
                 function reduceAmount(balances, daysUsed) {
                     for (let i = 0; i < balances.length; i++) {
                         let tempDays = balances[i].amount
-                        balances[i].amount -= daysUsed;
+                        balances[i].amount -= daysUsed; // mengurangi amount
 
-                        if (balances[i].amount < 0 && i !== balances.length - 1) {
-                            daysUsed = -1 * balances[i].amount
+                        if (balances[i].amount < 0 && i !== balances.length - 1) { // cek jika amount balance negatif dan bukan balance tahun ini
+                            daysUsed = -1 * balances[i].amount // untuk pengurangan iterasi selanjutnya
                             balances[i].amount = 0;
                         } else {
                             daysUsed = 0;
                         }
 
+                        // menambahkan history record balance yang digunakan dengan struktur [id balance, tahun balance, amount yang digunakan]
                         balancesUsed.push([balances[i].id_balance, balances[i].receive_date.getFullYear(), tempDays - balances[i].amount]);
                     }
 
                     return balances
                 }
 
-                if (isStartDateNextYear) {
-                    updatedBalances = reduceAmount(updatedBalances, totalDaysUsed);
-                    console.log(updatedBalances);
-                } else {
-                    updatedBalances = reduceAmount(updatedBalances.reverse(), totalDaysUsed);
-                    console.log(updatedBalances)
-                }
+                updatedBalances = reduceAmount(updatedBalances.reverse(), totalDaysUsed);
+                console.log(updatedBalances)
             }
 
-            // restore
-            // array di loop ini disort dari paling baru/ [0] = currentBalance
+            /*
+            restore:
+            penambahan jatah cuti berdasarkan array historyBalancesUsed
+            - approved -> rejected 
+            */
             if (data.status === "approved" && status === "rejected") {
                 const restoredBalance = updatedBalances;
 
@@ -162,11 +197,6 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             }
         }
 
-        if (data.leave_type == "personal_leave" && userBalance.find((bal) => bal.receive_date.getFullYear() === currentYear)?.amount < 0) {
-            const error = new Error('Insufficient leave balance');
-            error.statusCode = 400;
-            throw error;
-        }
 
         const balanceUpdates = userBalance.map((balance) =>
             prisma.tb_balance.update({
@@ -175,6 +205,7 @@ export const updateLeave = async (id, status, reason, nik, actor_fullname) => {
             })
         );
 
+        // update data balance dan leave serta membuat record baru pada tb_leave_log
         const result = await prisma.$transaction([
             prisma.tb_leave.update({ where: { id_leave: id }, data: { status: status } }),
             ...balanceUpdates,

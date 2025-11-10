@@ -37,7 +37,7 @@ userRoutes.get('/leave/:id', getLeaveRequestsById);
 userRoutes.get('/me', getUserMe);
 userRoutes.get('/:nik', getUser);
 userRoutes.patch('/:nik', updateUser);
-userRoutes.delete('/:nik', validateRole("admin", "super_admin"), deleteUser);
+userRoutes.delete('/:nik',isAuthenticated, validateRole("admin", "super_admin"), deleteUser);
 
 userRoutes.patch('/:nik/balance',validateRole("admin", "super_admin"), modifyAmount);
 userRoutes.get('/', validateRole("admin", "super_admin") ,allUsers);
