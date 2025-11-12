@@ -11,7 +11,7 @@
           />
         </div>
         <p class="text-sm font-medium text-gray-600 mt-2">
-          Selamat datang, !
+          Selamat datang, Andi!
         </p>
       </div>
 

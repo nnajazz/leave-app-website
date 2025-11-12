@@ -24,11 +24,14 @@ app.use(compression({
     threshold: 0
 }))
 
-const corsOption = ['http://localhost:3000', 'http://10.10.101.178:3000']
+const corsOption = [
+  "http://10.10.101.178:3000",
+  "http://localhost:5173",
+];
 app.use(cors({
     origin: corsOption,
     credentials: true,
-    exposedHeaders: ["Authorization", "device-id"]
+    exposedHeaders: ["Authorization", "device-id"] 
 }))
 
 app.use('/api/v1/', routes);

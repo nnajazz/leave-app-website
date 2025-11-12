@@ -18,7 +18,7 @@ export const validateRole = (...allowedRoles) => {
                 });
             }
 
-            const userRoleSlug = decoded.role.slug;
+            const userRoleSlug = decoded.tb_roles.slug;
 
             if (!allowedRoles.includes(userRoleSlug)) {
                 return res.status(403).json({

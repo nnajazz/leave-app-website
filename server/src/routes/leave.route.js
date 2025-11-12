@@ -32,7 +32,7 @@ leaveRoutes.get('/logs/search', validateRole('super_admin', 'admin'), historyLea
 leaveRoutes.get('/special', getSpecialLeaveAdmin)
 leaveRoutes.get('/special/search', getSearchSpecialLeave)
 leaveRoutes.post('/special', validate(specialLeaveForm), createSpecialLeave)
-leaveRoutes.patch('/special/:id', validate(specialLeaveFormUpdate), updateSpecialLeave)
+leaveRoutes.patch('/special/:id',validate(specialLeaveFormUpdate), updateSpecialLeave)
 
 leaveRoutes.get('/mandatory', getMandatoryLeaves)
 leaveRoutes.get('/mandatory/search', getSearchMandatoryLeave)
